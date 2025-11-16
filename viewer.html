@@ -45,7 +45,7 @@
             <button id="capturePhotoBtn" class="primary-action" style="background-color: #ffc107; color: #333; width: 100%; margin-top: 0;">Chụp Ảnh (1/4)</button>
             
             <label for="viewerImageUpload" id="viewerImageUploadLabel" class="secondary-action" style="margin-top: 5px;">
-                **Hoặc Tải Ảnh Lên Để Thay Thế**
+                **Hoặc Tải Ảnh Lên Để Thêm Sticker**
             </label>
             <input type="file" id="viewerImageUpload" accept="image/*" style="display: none;">
         </div>
@@ -53,7 +53,7 @@
         <button id="exportFinalImageBtn" class="primary-action">Xuất Strip Ảnh Hoàn Chỉnh (Tải về)</button>
         
         <div class="alert-message" style="margin-top: 20px;">
-             Bạn không thể chỉnh sửa thiết kế này.
+            Bạn có thể kéo, xoay, và thay đổi kích thước các đối tượng sticker/ảnh đã có và các ảnh mới tải lên.
         </div>
         
     </div>
@@ -103,6 +103,13 @@
         let stripWidth = 600;
         let stripHeight = 1800;
         
+        // BIẾN NỀN MỚI
+        let currentBackground = {
+            type: 'color', 
+            value: '#ffffff',
+            imageObject: null 
+        };
+        
         
         // =======================================================
         // PHẦN 1: HÀM VẼ VÀ CHỤP ẢNH
@@ -118,7 +125,7 @@
                 console.error("Không thể truy cập webcam:", error);
                 webcamFeed.style.display = 'none';
                 capturePhotoBtn.style.display = 'none';
-                alert("Không thể truy cập Webcam. Vui lòng sử dụng tính năng 'Tải Ảnh Lên Để Thay Thế'.");
+                alert("Không thể truy cập Webcam. Vui lòng sử dụng tính năng 'Tải Ảnh Lên Để Thêm Sticker'.");
             }
         }
         
@@ -182,7 +189,7 @@
 
 
         // =======================================================
-        // PHẦN 2: LOGIC VẼ KHUNG VÀ ĐỐI TƯỢNG (Đã fix lỗi mất ảnh)
+        // PHẦN 2: LOGIC VẼ KHUNG VÀ ĐỐI TƯỢNG (ĐÃ FIX BACKGROUND)
         // =======================================================
         
         function drawFrame() {
@@ -193,6 +200,52 @@
             const photoHeight = (stripHeight - (MAX_PHOTOS + 1) * frameThickness) / MAX_PHOTOS; 
 
             ctx.clearRect(0, 0, stripWidth, stripHeight);
+            
+            // 1. VẼ NỀN STRIP (COLOR/PATTERN/IMAGE)
+            if (currentBackground.type === 'color') {
+                ctx.fillStyle = currentBackground.value;
+                ctx.fillRect(0, 0, stripWidth, stripHeight);
+            } else if (currentBackground.type === 'pattern') {
+                // Logic vẽ pattern: Dùng canvas tạm để tạo pattern (SAO CHÉP TỪ DESIGNER)
+                const patternCanvas = document.createElement('canvas');
+                const patternSize = 50; 
+                patternCanvas.width = patternSize;
+                patternCanvas.height = patternSize;
+                const patternCtx = patternCanvas.getContext('2d');
+                
+                if (currentBackground.value === 'none') {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, stripWidth, stripHeight);
+                } else if (currentBackground.value === 'dots') {
+                    patternCtx.fillStyle = '#ccc'; patternCtx.fillRect(0, 0, patternSize, patternSize);
+                    patternCtx.fillStyle = '#eee'; patternCtx.beginPath(); patternCtx.arc(patternSize/2, patternSize/2, 2, 0, Math.PI * 2); patternCtx.fill();
+                } else if (currentBackground.value === 'lines') {
+                    patternCtx.fillStyle = '#eee'; patternCtx.fillRect(0, 0, patternSize, patternSize);
+                    patternCtx.strokeStyle = '#ccc'; patternCtx.lineWidth = 1; patternCtx.beginPath();
+                    patternCtx.moveTo(0, patternSize / 2); patternCtx.lineTo(patternSize, patternSize / 2);
+                    patternCtx.moveTo(patternSize / 2, 0); patternCtx.lineTo(patternSize / 2, patternSize); patternCtx.stroke();
+                } else if (currentBackground.value === 'stripes') {
+                     patternCtx.fillStyle = '#f0f0f0'; patternCtx.fillRect(0, 0, patternSize, patternSize);
+                     patternCtx.fillStyle = '#ddd'; patternCtx.fillRect(0, 0, patternSize / 2, patternSize); 
+                     patternCtx.fillRect(patternSize / 2, 0, patternSize / 2, patternSize);
+                     patternCtx.rotate(45 * Math.PI / 180);
+                }
+                
+                const pattern = ctx.createPattern(patternCanvas, 'repeat');
+                ctx.fillStyle = pattern;
+                ctx.fillRect(0, 0, stripWidth, stripHeight);
+
+            } else if (currentBackground.type === 'image' && currentBackground.imageObject) {
+                const img = currentBackground.imageObject;
+                const ratio = Math.max(stripWidth / img.width, stripHeight / img.height);
+                const drawW = img.width * ratio;
+                const drawH = img.height * ratio;
+                const drawX = (stripWidth - drawW) / 2;
+                const drawY = (stripHeight - drawH) / 2;
+                ctx.drawImage(img, drawX, drawY, drawW, drawH);
+            }
+
+            // 2. VẼ KHUNG VIỀN (Frame Color)
             ctx.fillStyle = frameColor;
             ctx.fillRect(0, 0, stripWidth, stripHeight);
 
@@ -204,11 +257,12 @@
                 return;
             }
             
-            // 1. Vẽ các khung ảnh chụp
+            // 3. VẼ các khung ảnh chụp
             for (let i = 0; i < MAX_PHOTOS; i++) {
                 const x = frameThickness;
                 const y = frameThickness + i * (photoHeight + frameThickness); 
 
+                // Vẽ nền trắng cho vùng ảnh chụp
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(x, y, photoWidth, photoHeight);
 
@@ -227,6 +281,7 @@
                         finalDrawH = photoWidth / imgAspectRatio;
                     }
 
+                    // Áp dụng Photo Size Scale
                     finalDrawW *= photoSizeScale;
                     finalDrawH *= photoSizeScale;
 
@@ -243,7 +298,7 @@
                 }
             }
             
-            // 2. VẼ CÁC STICKER/TEXT (Đã fix lỗi mất ảnh idol)
+            // 4. VẼ CÁC STICKER/TEXT (Đảm bảo lớp trên cùng)
             canvasObjects.forEach(obj => {
                 ctx.save();
                 const centerX = obj.x + obj.width / 2;
@@ -270,7 +325,7 @@
                     ctx.fillText(obj.text, obj.x + obj.width / 2, obj.y + obj.height / 2); 
                 }
                 
-                // VẼ VIỀN VÀ ĐIỂM ĐIỀU KHIỂN NẾU ĐƯỢC CHỌN (Cho phép kéo, resize, rotate)
+                // VẼ VIỀN VÀ ĐIỂM ĐIỀU KHIỂN NẾU ĐƯỢC CHỌN
                 if (obj === selectedObject) {
                     ctx.strokeStyle = '#FF00FF'; 
                     ctx.lineWidth = 2;
@@ -393,9 +448,9 @@
 
                 // Kiểm tra kéo đối tượng
                 if (isPointInObject(mousePos.x, mousePos.y, obj)) {
-                    // Đẩy đối tượng lên trên cùng (Z-Index)
-                    canvasObjects.splice(i, 1);
-                    canvasObjects.push(obj);
+                    // FIX TƯƠNG TÁC: Không thay đổi thứ tự lớp trong Viewer Mode
+                    // canvasObjects.splice(i, 1); 
+                    // canvasObjects.push(obj);   
                     foundObject = obj;
                     break;
                 }
@@ -474,7 +529,7 @@
         }
 
         // =======================================================
-        // PHẦN 4: LOGIC TẢI DỮ LIỆU
+        // PHẦN 4: LOGIC TẢI DỮ LIỆU (ĐÃ CẬP NHẬT BACKGROUND)
         // =======================================================
 
         function loadDesignFromData(designData) {
@@ -485,20 +540,37 @@
             stripHeight = parseInt(designData.settings.stripHeight) || 1800;
             currentDesignId = designData.id;
             
-            drawFrame(); 
-
-            canvasObjects = [];
-            capturedPhotos = [];
-            let loadCount = 0;
+            // THÊM: Tải thông tin Background
+            const bgSettings = designData.settings.background || { type: 'color', value: '#000000' };
+            currentBackground.type = bgSettings.type;
+            currentBackground.value = bgSettings.value;
+            currentBackground.imageObject = null;
             
             const photosToLoadData = designData.photos || [];
             const objectsToLoadData = designData.objects || [];
-            const totalItemsToLoad = photosToLoadData.length + objectsToLoadData.length; 
+
+            let loadCount = 0;
+            let totalItemsToLoad = photosToLoadData.length + objectsToLoadData.length; 
+            
+            // Xử lý ảnh nền
+            if (bgSettings.type === 'image' && bgSettings.value) {
+                totalItemsToLoad++; // Thêm 1 item vào tổng số cần tải
+                const img = new Image();
+                img.onload = () => {
+                    currentBackground.imageObject = img;
+                    finishLoading(); 
+                };
+                img.onerror = finishLoading; // Nếu tải lỗi, vẫn coi là hoàn tất
+                img.crossOrigin = "Anonymous";
+                img.src = bgSettings.value;
+            }
+            
+            drawFrame(); // Vẽ khung trước khi tải ảnh
 
             const finishLoading = () => {
                 loadCount++;
                 if (loadCount === totalItemsToLoad || totalItemsToLoad === 0) {
-                    drawFrame(); 
+                    drawFrame(); // Vẽ lại cuối cùng khi mọi thứ tải xong
                 }
             };
 
@@ -527,28 +599,20 @@
             });
 
             // 2. Tải Objects (Sticker/Text/Ảnh Idol)
-            // 2. Tải Objects (Sticker/Text/Ảnh Idol) - FIX MẤT ẢNH
             objectsToLoadData.forEach(objData => {
                 if (objData.type === 'text') {
                     canvasObjects.push(objData);
                     finishLoading();
                 } else if (objData.src) {
                     const img = new Image();
-                    objData.image = img; // Gán đối tượng Image vào data object ngay lập tức
+                    objData.image = img; // Gán đối tượng Image vào data object
+                    canvasObjects.push(objData); 
 
-                    img.onload = () => {
-                        // Ảnh đã tải thành công, không cần làm gì thêm
+                    img.onload = finishLoading;
+                    img.onerror = () => {
+                        console.error("Image loading failed for object:", objData.name);
                         finishLoading();
                     };
-                    
-                    img.onerror = () => { 
-                        // Nếu tải lỗi, chúng ta vẫn hoàn thành bước loading
-                        console.error("Image loading failed for object:", objData.name);
-                        finishLoading(); 
-                    };
-                    
-                    // Đẩy đối tượng vào mảng canvasObjects ngay lập tức (trước khi tải ảnh)
-                    canvasObjects.push(objData); 
                     
                     img.crossOrigin = "Anonymous"; 
                     img.src = objData.src;
@@ -566,7 +630,6 @@
         // =======================================================
 
         window.onload = () => {
-            // FIX: Làm sạch hash và dùng hàm urlSafeBase64Decode
             const hashValueRaw = window.location.hash.substring(1);
             const hashValue = hashValueRaw.replace(/[^a-zA-Z0-9\-_=]/g, '').trim(); 
             const container = document.getElementById('viewer-container');
@@ -610,7 +673,7 @@
         capturePhotoBtn.addEventListener('click', capturePhoto);
         exportFinalImageBtn.addEventListener('click', exportFinalImage);
         
-        // FIX: Xử lý Tải ảnh lên (thêm ảnh mới làm sticker có thể chỉnh sửa)
+        // Xử lý Tải ảnh lên (thêm ảnh mới làm sticker có thể chỉnh sửa)
         viewerImageUpload.addEventListener('change', (e) => {
             const files = e.target.files;
             if (files.length > 0) {

@@ -438,86 +438,189 @@
 
 
         function drawFrame() {
-            const scale = parseFloat(photoSizeScaleInput.value);
-            const thickness = parseInt(frameThicknessInput.value);
+    const scale = parseFloat(photoSizeScaleInput.value);
+    const thickness = parseInt(frameThicknessInput.value);
+    
+    let currentWidth = parseFloat(stripWidthInput.value);
+    let currentHeight = parseFloat(stripHeightInput.value);
+
+    currentWidth = Math.max(100, currentWidth);
+    currentHeight = Math.max(300, currentHeight);
+    stripWidthInput.value = currentWidth.toFixed(0);
+    stripHeightInput.value = currentHeight.toFixed(0);
+
+    canvas.width = currentWidth;
+    canvas.height = currentHeight;
+    thicknessValueSpan.textContent = `${thickness}px`;
+    sizeValueSpan.textContent = `${(scale * 100).toFixed(0)}%`;
+    fontSizeValueSpan.textContent = `${fontSizeInput.value}px`; 
+
+    ctx.clearRect(0, 0, currentWidth, currentHeight);
+
+    // =======================================================
+    // BƯỚC 1: VẼ NỀN STRIP (COLOR/PATTERN/IMAGE)
+    // =======================================================
+    
+    if (currentBackground.type === 'color') {
+        ctx.fillStyle = currentBackground.value;
+        ctx.fillRect(0, 0, currentWidth, currentHeight);
+    } else if (currentBackground.type === 'pattern') {
+        // Tái tạo canvas tạm để vẽ pattern
+        const patternCanvas = document.createElement('canvas');
+        const patternSize = 50; 
+        patternCanvas.width = patternSize;
+        patternCanvas.height = patternSize;
+        const patternCtx = patternCanvas.getContext('2d');
+        
+        // Vẽ pattern mô phỏng lại CSS (Cần giữ logic này vì Canvas không tự dùng CSS background)
+        if (currentBackground.value === 'none') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, currentWidth, currentHeight);
+        } else if (currentBackground.value === 'dots') {
+            patternCtx.fillStyle = '#ccc';
+            patternCtx.fillRect(0, 0, patternSize, patternSize);
+            patternCtx.fillStyle = '#eee';
+            patternCtx.beginPath();
+            patternCtx.arc(patternSize/2, patternSize/2, 2, 0, Math.PI * 2);
+            patternCtx.fill();
             
-            let currentWidth = parseFloat(stripWidthInput.value);
-            let currentHeight = parseFloat(stripHeightInput.value);
+        } else if (currentBackground.value === 'lines') {
+            patternCtx.fillStyle = '#eee';
+            patternCtx.fillRect(0, 0, patternSize, patternSize);
+            patternCtx.strokeStyle = '#ccc';
+            patternCtx.lineWidth = 1;
+            patternCtx.beginPath();
+            patternCtx.moveTo(0, patternSize / 2);
+            patternCtx.lineTo(patternSize, patternSize / 2);
+            patternCtx.moveTo(patternSize / 2, 0);
+            patternCtx.lineTo(patternSize / 2, patternSize);
+            patternCtx.stroke();
+        } else if (currentBackground.value === 'stripes') {
+             patternCtx.fillStyle = '#f0f0f0';
+             patternCtx.fillRect(0, 0, patternSize, patternSize);
+             patternCtx.fillStyle = '#ddd';
+             patternCtx.fillRect(0, 0, patternSize / 2, patternSize); 
+             patternCtx.fillRect(patternSize / 2, 0, patternSize / 2, patternSize);
+             
+             patternCtx.rotate(45 * Math.PI / 180);
+        }
+        
+        const pattern = ctx.createPattern(patternCanvas, 'repeat');
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, 0, currentWidth, currentHeight);
 
-            currentWidth = Math.max(100, currentWidth);
-            currentHeight = Math.max(300, currentHeight);
-            stripWidthInput.value = currentWidth.toFixed(0);
-            stripHeightInput.value = currentHeight.toFixed(0);
+    } else if (currentBackground.type === 'image' && currentBackground.imageObject) {
+        const img = currentBackground.imageObject;
+        // Vẽ ảnh nền (phủ đầy - cover)
+        const ratio = Math.max(currentWidth / img.width, currentHeight / img.height);
+        const drawW = img.width * ratio;
+        const drawH = img.height * ratio;
+        const drawX = (currentWidth - drawW) / 2;
+        const drawY = (currentHeight - drawH) / 2;
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    }
+    
+    // =======================================================
+    // BƯỚC 2: VẼ VIỀN/KHUNG ẢNH (frameColor)
+    // =======================================================
+    
+    // VẼ KHUNG/VIỀN (frameColorInput.value)
+    ctx.fillStyle = frameColorInput.value;
+    ctx.fillRect(0, 0, currentWidth, currentHeight);
 
-            canvas.width = currentWidth;
-            canvas.height = currentHeight;
-            thicknessValueSpan.textContent = `${thickness}px`;
-            sizeValueSpan.textContent = `${(scale * 100).toFixed(0)}%`;
-            fontSizeValueSpan.textContent = `${fontSizeInput.value}px`; 
+    const photoWidth = currentWidth - 2 * thickness;
+    const photoHeight = (currentHeight - (MAX_PHOTOS + 1) * thickness) / MAX_PHOTOS; 
 
-            ctx.clearRect(0, 0, currentWidth, currentHeight);
+    if (photoWidth <= 0 || photoHeight <= 0) {
+        ctx.fillStyle = 'red';
+        ctx.textAlign = 'center';
+        ctx.fillText('Kích thước khung quá lớn!', currentWidth / 2, currentHeight / 2);
+        return;
+    }
 
-            // --- XỬ LÝ VẼ NỀN MỚI ---
-            if (currentBackground.type === 'color') {
-                ctx.fillStyle = currentBackground.value;
-                ctx.fillRect(0, 0, currentWidth, currentHeight);
-            } else if (currentBackground.type === 'pattern') {
-                // Tạo canvas tạm để vẽ pattern
-                const patternCanvas = document.createElement('canvas');
-                const patternSize = 50; 
-                patternCanvas.width = patternSize;
-                patternCanvas.height = patternSize;
-                const patternCtx = patternCanvas.getContext('2d');
-                
-                // Sử dụng CSS class để xác định pattern. Phức tạp hơn nhưng giữ logic.
-                // Đối với Canvas, cách tốt nhất là mô phỏng lại pattern
-                
-                if (currentBackground.value === 'none') {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, currentWidth, currentHeight);
-                } else if (currentBackground.value === 'dots') {
-                    patternCtx.fillStyle = '#ccc';
-                    patternCtx.fillRect(0, 0, patternSize, patternSize);
-                    patternCtx.fillStyle = '#eee';
-                    patternCtx.beginPath();
-                    patternCtx.arc(patternSize/2, patternSize/2, 2, 0, Math.PI * 2);
-                    patternCtx.fill();
-                    
-                } else if (currentBackground.value === 'lines') {
-                    patternCtx.fillStyle = '#eee';
-                    patternCtx.fillRect(0, 0, patternSize, patternSize);
-                    patternCtx.strokeStyle = '#ccc';
-                    patternCtx.lineWidth = 1;
-                    patternCtx.beginPath();
-                    patternCtx.moveTo(0, patternSize / 2);
-                    patternCtx.lineTo(patternSize, patternSize / 2);
-                    patternCtx.moveTo(patternSize / 2, 0);
-                    patternCtx.lineTo(patternSize / 2, patternSize);
-                    patternCtx.stroke();
-                } else if (currentBackground.value === 'stripes') {
-                     patternCtx.fillStyle = '#f0f0f0';
-                     patternCtx.fillRect(0, 0, patternSize, patternSize);
-                     patternCtx.fillStyle = '#ddd';
-                     patternCtx.fillRect(0, 0, patternSize / 2, patternSize); 
-                     patternCtx.fillRect(patternSize / 2, 0, patternSize / 2, patternSize);
-                     
-                     patternCtx.rotate(45 * Math.PI / 180);
-                }
-                
-                const pattern = ctx.createPattern(patternCanvas, 'repeat');
-                ctx.fillStyle = pattern;
-                ctx.fillRect(0, 0, currentWidth, currentHeight);
+    // =======================================================
+    // BƯỚC 3: VẼ CÁC VÙNG ẢNH TRẮNG VÀ ẢNH CHỤP
+    // =======================================================
 
-            } else if (currentBackground.type === 'image' && currentBackground.imageObject) {
-                const img = currentBackground.imageObject;
-                // Vẽ ảnh nền (phủ đầy - cover)
-                const ratio = Math.max(currentWidth / img.width, currentHeight / img.height);
-                const drawW = img.width * ratio;
-                const drawH = img.height * ratio;
-                const drawX = (currentWidth - drawW) / 2;
-                const drawY = (currentHeight - drawH) / 2;
-                ctx.drawImage(img, drawX, drawY, drawW, drawH);
-            }
+    for (let i = 0; i < MAX_PHOTOS; i++) {
+        const x = thickness;
+        const y = thickness + i * (photoHeight + thickness); 
+
+        // Vẽ nền trắng cho vùng ảnh để ngăn nền Strip hiện qua
+        // Nếu bạn muốn nền Strip hiện qua vùng ảnh, hãy xóa 2 dòng code này:
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x, y, photoWidth, photoHeight);
+        // (Kết thúc vùng cần xóa nếu muốn ảnh chụp có nền Strip)
+
+        if (capturedPhotos[i] && capturedPhotos[i].image) {
+            const img = capturedPhotos[i].image;
+            const imgW = img.width;
+            const imgH = img.height;
+            
+            const fillRatio = Math.max(photoWidth / imgW, photoHeight / imgH);
+            
+            const finalDrawW = imgW * fillRatio * scale;
+            const finalDrawH = imgH * fillRatio * scale;
+
+            const drawX = x + (photoWidth - finalDrawW) / 2;
+            const drawY = y + (photoHeight - finalDrawH) / 2;
+            
+            ctx.drawImage(img, drawX, drawY, finalDrawW, finalDrawH);
+
+        } else {
+            ctx.fillStyle = 'gray';
+            ctx.font = '30px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Ảnh ${i + 1} CHƯA CHỤP`, x + photoWidth / 2, y + photoHeight / 2);
+        }
+    }
+    
+    // =======================================================
+    // BƯỚC 4: VẼ CÁC STICKER/TEXT (Đảm bảo lớp trên cùng)
+    // =======================================================
+    
+    // VẼ CÁC STICKER/ẢNH/TEXT Tải lên (Giữ nguyên logic của bạn)
+    canvasObjects.forEach(obj => {
+        ctx.save();
+        
+        const centerX = obj.x + obj.width / 2;
+        const centerY = obj.y + obj.height / 2;
+        ctx.translate(centerX, centerY);
+        ctx.rotate(obj.angle || 0); 
+        ctx.translate(-centerX, -centerY); 
+
+        if (obj.type === 'image' || obj.type === 'sticker') {
+            ctx.drawImage(obj.image, obj.x, obj.y, obj.width, obj.height);
+        } else if (obj.type === 'text') {
+            // Logic vẽ Text...
+            ctx.font = `${obj.fontSize}px "${obj.fontFamily}", sans-serif`;
+            ctx.fillStyle = obj.textColor;
+            ctx.textAlign = 'center'; 
+            ctx.textBaseline = 'middle'; 
+
+            const metrics = ctx.measureText(obj.text);
+            obj.width = metrics.width;
+            obj.height = obj.fontSize * 1.2; 
+
+            ctx.fillText(obj.text, obj.x + obj.width / 2, obj.y + obj.height / 2); 
+        }
+        
+        // Logic vẽ viền chọn đối tượng...
+        if (controlsPanel.style.display !== 'none' && obj === selectedObject) {
+            const controlPointSize = 10;
+            ctx.strokeStyle = '#FF00FF'; 
+            ctx.lineWidth = 2;
+            ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
+            // Nút điều khiển...
+            // ... (Phần vẽ nút điều khiển giữ nguyên)
+            ctx.fillStyle = '#00FFFF';
+            ctx.fillRect(obj.x + obj.width - controlPointSize / 2, obj.y + obj.height - controlPointSize / 2, controlPointSize, controlPointSize);
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(obj.x - controlPointSize / 2, obj.y - controlPointSize / 2, controlPointSize, controlPointSize);
+        }
+        ctx.restore(); 
+    });
+}
             // --- KẾT THÚC XỬ LÝ VẼ NỀN MỚI ---
             
             // VẼ KHUNG/VIỀN (frameColorInput.value)
