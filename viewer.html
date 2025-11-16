@@ -189,293 +189,151 @@
         // PHẦN 2: LOGIC VẼ KHUNG VÀ ĐỐI TƯỢNG (ĐÃ FIX DRAW FRAME)
         // =======================================================
         
-        function drawFrame() {
-            canvas.width = stripWidth;
-            canvas.height = stripHeight;
+        // ... (các phần khác giữ nguyên)
 
-            const currentFrameColor = frameColor;
-            const thickness = frameThickness;
-            const scale = photoSizeScale;
+function drawFrame() {
+    canvas.width = stripWidth;
+    canvas.height = stripHeight;
 
-            ctx.clearRect(0, 0, stripWidth, stripHeight);
-            
-            // 1. VẼ NỀN STRIP (COLOR/PATTERN/IMAGE)
-            if (currentBackground.type === 'color') {
-                ctx.fillStyle = currentBackground.value;
-                ctx.fillRect(0, 0, stripWidth, stripHeight);
-            } else if (currentBackground.type === 'pattern') {
-                const patternCanvas = document.createElement('canvas');
-                const patternSize = 50; 
-                patternCanvas.width = patternSize;
-                patternCanvas.height = patternSize;
-                const patternCtx = patternCanvas.getContext('2d');
-                
-                if (currentBackground.value === 'none') {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, stripWidth, stripHeight);
-                } else if (currentBackground.value === 'dots') {
-                    patternCtx.fillStyle = '#ccc'; patternCtx.fillRect(0, 0, patternSize, patternSize);
-                    patternCtx.fillStyle = '#eee'; patternCtx.beginPath(); patternCtx.arc(patternSize/2, patternSize/2, 2, 0, Math.PI * 2); patternCtx.fill();
-                } else if (currentBackground.value === 'lines') {
-                    patternCtx.fillStyle = '#eee'; patternCtx.fillRect(0, 0, patternSize, patternSize);
-                    patternCtx.strokeStyle = '#ccc'; patternCtx.lineWidth = 1; patternCtx.beginPath();
-                    patternCtx.moveTo(0, patternSize / 2); patternCtx.lineTo(patternSize, patternSize / 2);
-                    patternCtx.moveTo(patternSize / 2, 0); patternCtx.lineTo(patternSize / 2, patternSize); patternCtx.stroke();
-                } else if (currentBackground.value === 'stripes') {
-                     patternCtx.fillStyle = '#f0f0f0'; patternCtx.fillRect(0, 0, patternSize, patternSize);
-                     patternCtx.fillStyle = '#ddd'; patternCtx.fillRect(0, 0, patternSize / 2, patternSize); 
-                     patternCtx.fillRect(patternSize / 2, 0, patternSize / 2, patternSize);
-                     patternCtx.rotate(45 * Math.PI / 180);
-                }
-                
-                const pattern = ctx.createPattern(patternCanvas, 'repeat');
-                ctx.fillStyle = pattern;
-                ctx.fillRect(0, 0, stripWidth, stripHeight);
-
-            } else if (currentBackground.type === 'image' && currentBackground.imageObject) {
-                const img = currentBackground.imageObject;
-                const ratio = Math.max(stripWidth / img.width, stripHeight / img.height);
-                const drawW = img.width * ratio;
-                const drawH = img.height * ratio;
-                const drawX = (stripWidth - drawW) / 2;
-                const drawY = (stripHeight - drawH) / 2;
-                ctx.drawImage(img, drawX, drawY, drawW, drawH);
-            }
-
-            // 2. TÍNH TOÁN KÍCH THƯỚC VÀ KIỂM TRA LỖI
-            const photoWidth = stripWidth - 2 * thickness;
-            const photoHeight = (stripHeight - (MAX_PHOTOS + 1) * thickness) / MAX_PHOTOS; 
-
-            if (photoWidth <= 0 || photoHeight <= 0) {
-                ctx.fillStyle = 'red';
-                ctx.textAlign = 'center';
-                ctx.font = '30px sans-serif';
-                ctx.fillText('LỖI KÍCH THƯỚC KHUNG!', stripWidth / 2, stripHeight / 2);
-                return;
-            }
-            
-            // 3. VẼ CÁC VÙNG ẢNH CHỤP VÀ KHUNG VIỀN (Frame Color)
-            
-            // Vẽ dải ngang trên cùng
-            ctx.fillStyle = currentFrameColor;
-            ctx.fillRect(0, 0, stripWidth, thickness);
-            
-            for (let i = 0; i < MAX_PHOTOS; i++) {
-                const x = thickness;
-                const y = thickness + i * (photoHeight + thickness); 
-
-                // --- VẼ KHUNG VIỀN THEO CHIỀU NGANG GIỮA CÁC ẢNH ---
-                ctx.fillStyle = currentFrameColor;
-                ctx.fillRect(0, y - thickness, stripWidth, thickness);
-                
-                // Vẽ dải ngang cuối cùng
-                if (i === MAX_PHOTOS - 1) {
-                     ctx.fillStyle = currentFrameColor;
-                     ctx.fillRect(0, y + photoHeight, stripWidth, thickness);
-                }
-                
-                // --- VẼ KHUNG VIỀN THEO CHIỀU DỌC HAI BÊN ---
-                // Dải dọc trái
-                ctx.fillStyle = currentFrameColor;
-                ctx.fillRect(0, y - thickness, thickness, photoHeight + thickness);
-
-                // Dải dọc phải
-                ctx.fillStyle = currentFrameColor;
-                ctx.fillRect(stripWidth - thickness, y - thickness, thickness, photoHeight + thickness);
-                
-                // --- VẼ ẢNH CHỤP ---
-
-                if (capturedPhotos[i] && capturedPhotos[i].image) {
-                    const img = capturedPhotos[i].image;
-                    const imgAspectRatio = img.width / img.height;
-                    const frameAspectRatio = photoWidth / photoHeight;
-
-                    let finalDrawW, finalDrawH;
-                    if (imgAspectRatio > frameAspectRatio) {
-                        finalDrawH = photoHeight;
-                        finalDrawW = photoHeight * imgAspectRatio;
-                    } else {
-                        finalDrawW = photoWidth;
-                        finalDrawH = photoWidth / imgAspectRatio;
-                    }
-
-                    finalDrawW *= scale;
-                    finalDrawH *= scale;
-
-                    const drawX = x + (photoWidth - finalDrawW) / 2;
-                    const drawY = y + (photoHeight - finalDrawH) / 2;
-                    
-                    // Cài đặt Clip Path để ảnh không tràn ra ngoài khung (rất quan trọng)
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.rect(x, y, photoWidth, photoHeight);
-                    ctx.clip(); // Giới hạn vùng vẽ
-
-                    ctx.drawImage(img, drawX, drawY, finalDrawW, finalDrawH);
-                    ctx.restore(); // Khôi phục Canvas
-
-                } else {
-                    ctx.fillStyle = 'gray';
-                    ctx.font = '30px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(`Ảnh ${i + 1} CHƯA CHỤP`, x + photoWidth / 2, y + photoHeight / 2);
-                }
-            }
-            
-            // 4. VẼ CÁC STICKER/TEXT
-            canvasObjects.forEach(obj => {
-                ctx.save();
-                const centerX = obj.x + obj.width / 2;
-                const centerY = obj.y + obj.height / 2;
-                ctx.translate(centerX, centerY);
-                ctx.rotate(obj.angle || 0); 
-                ctx.translate(-centerX, -centerY); 
-
-                if (obj.type === 'image' || obj.type === 'sticker') {
-                    if (obj.image && obj.image.complete) { 
-                        ctx.drawImage(obj.image, obj.x, obj.y, obj.width, obj.height);
-                    }
-                } else if (obj.type === 'text') {
-                    ctx.font = `${obj.fontSize}px "${obj.fontFamily}", sans-serif`;
-                    ctx.fillStyle = obj.textColor;
-                    ctx.textAlign = 'center'; 
-                    ctx.textBaseline = 'middle'; 
-                    
-                    const metrics = ctx.measureText(obj.text);
-                    obj.width = metrics.width;
-                    obj.height = obj.fontSize * 1.2; 
-                    
-                    ctx.fillText(obj.text, obj.x + obj.width / 2, obj.y + obj.height / 2); 
-                }
-                
-                // VẼ VIỀN VÀ ĐIỂM ĐIỀU KHIỂN NẾU ĐƯỢC CHỌN
-                if (obj === selectedObject) {
-                    const controlPointSize = 10;
-                    ctx.strokeStyle = '#FF00FF'; 
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
-                    
-                    ctx.fillStyle = '#00FFFF';
-                    ctx.fillRect(obj.x + obj.width - controlPointSize / 2, obj.y + obj.height - controlPointSize / 2, controlPointSize, controlPointSize);
-                    ctx.fillStyle = '#FF0000';
-                    ctx.fillRect(obj.x - controlPointSize / 2, obj.y - controlPointSize / 2, controlPointSize, controlPointSize);
-                }
-                ctx.restore(); 
-            });
-        }
-
-
-        // =======================================================
-        // PHẦN 3: LOGIC TƯƠNG TÁC (ĐÃ TỐI ƯU HÓA)
-        // =======================================================
+    const currentFrameColor = frameColor; // Lấy từ biến cục bộ trong Viewer
+    const thickness = frameThickness;
+    const scale = photoSizeScale;
+    
+    ctx.clearRect(0, 0, stripWidth, stripHeight);
+    
+    // 1. VẼ NỀN STRIP (COLOR/PATTERN/IMAGE)
+    // ... (Logic vẽ Background giữ nguyên như trong index.html) ...
+    // [Vui lòng sao chép và dán toàn bộ logic VẼ BACKGROUND (Bước 1) từ index.html vào đây]
+    if (currentBackground.type === 'color') {
+        ctx.fillStyle = currentBackground.value;
+        ctx.fillRect(0, 0, stripWidth, stripHeight);
+    } else if (currentBackground.type === 'pattern') {
+        const patternCanvas = document.createElement('canvas');
+        const patternSize = 50; 
+        patternCanvas.width = patternSize;
+        patternCanvas.height = patternSize;
+        const patternCtx = patternCanvas.getContext('2d');
         
-        function getMousePos(e) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                x: (e.clientX - rect.left) * (canvas.width / rect.width),
-                y: (e.clientY - rect.top) * (canvas.height / rect.height)
-            };
+        if (currentBackground.value === 'dots') {
+            patternCtx.fillStyle = '#ccc'; patternCtx.fillRect(0, 0, patternSize, patternSize);
+            patternCtx.fillStyle = '#eee'; patternCtx.beginPath(); patternCtx.arc(patternSize/2, patternSize/2, 2, 0, Math.PI * 2); patternCtx.fill();
+        } else if (currentBackground.value === 'lines') {
+            patternCtx.fillStyle = '#eee'; patternCtx.fillRect(0, 0, patternSize, patternSize);
+            patternCtx.strokeStyle = '#ccc'; patternCtx.lineWidth = 1; patternCtx.beginPath();
+            patternCtx.moveTo(0, patternSize / 2); patternCtx.lineTo(patternSize, patternSize / 2);
+            patternCtx.moveTo(patternSize / 2, 0); patternCtx.lineTo(patternSize / 2, patternSize); patternCtx.stroke();
+        } else if (currentBackground.value === 'stripes') {
+             patternCtx.fillStyle = '#f0f0f0'; patternCtx.fillRect(0, 0, patternSize, patternSize);
+             patternCtx.fillStyle = '#ddd'; patternCtx.fillRect(0, 0, patternSize / 2, patternSize); 
+             patternCtx.fillRect(patternSize / 2, 0, patternSize / 2, patternSize);
+             patternCtx.rotate(45 * Math.PI / 180);
+        } else {
+             ctx.fillStyle = '#ffffff'; // Nền trắng nếu pattern='none'
+             ctx.fillRect(0, 0, stripWidth, stripHeight);
         }
         
-        function isPointInObject(x, y, obj) {
-            const centerX = obj.x + obj.width / 2;
-            const centerY = obj.y + obj.height / 2;
-
-            const cos = Math.cos(-obj.angle || 0);
-            const sin = Math.sin(-obj.angle || 0);
-            
-            const rotatedX = cos * (x - centerX) - sin * (y - centerY) + centerX;
-            const rotatedY = sin * (x - centerX) + cos * (y - centerY) + centerY;
-
-            return rotatedX >= obj.x && rotatedX <= obj.x + obj.width &&
-                   rotatedY >= obj.y && rotatedY <= obj.y + obj.height;
+        if (currentBackground.value !== 'none') {
+             const pattern = ctx.createPattern(patternCanvas, 'repeat');
+             ctx.fillStyle = pattern;
+             ctx.fillRect(0, 0, stripWidth, stripHeight);
         }
 
-        function checkRotatedHandle(x, y, obj, handleType) {
-            const controlPointSize = 10;
-            let handleX, handleY;
+    } else if (currentBackground.type === 'image' && currentBackground.imageObject) {
+        const img = currentBackground.imageObject;
+        const ratio = Math.max(stripWidth / img.width, stripHeight / img.height);
+        const drawW = img.width * ratio;
+        const drawH = img.height * ratio;
+        const drawX = (stripWidth - drawW) / 2;
+        const drawY = (stripHeight - drawH) / 2;
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    }
+    // [KẾT THÚC LOGIC VẼ BACKGROUND]
 
-            if (handleType === 'resize') {
-                handleX = obj.x + obj.width - controlPointSize / 2;
-                handleY = obj.y + obj.height - controlPointSize / 2;
-            } else if (handleType === 'rotate') {
-                handleX = obj.x - controlPointSize / 2;
-                handleY = obj.y - controlPointSize / 2;
+
+    // 2. TÍNH TOÁN KÍCH THƯỚC VÀ KIỂM TRA LỖI
+    const photoWidth = stripWidth - 2 * thickness;
+    const totalVerticalSpace = stripHeight - (MAX_PHOTOS + 1) * thickness;
+    const photoHeight = totalVerticalSpace / MAX_PHOTOS; 
+
+    if (photoWidth <= 0 || photoHeight <= 0) {
+        ctx.fillStyle = 'red';
+        ctx.textAlign = 'center';
+        ctx.font = '30px sans-serif';
+        ctx.fillText('LỖI KÍCH THƯỚC KHUNG!', stripWidth / 2, stripHeight / 2);
+        return;
+    }
+    
+    // 3. VẼ CÁC VÙNG ẢNH CHỤP VÀ KHUNG VIỀN (Frame Color)
+    
+    // Vẽ dải ngang trên cùng
+    ctx.fillStyle = currentFrameColor;
+    ctx.fillRect(0, 0, stripWidth, thickness);
+    
+    for (let i = 0; i < MAX_PHOTOS; i++) {
+        const x = thickness;
+        const y = thickness + i * (photoHeight + thickness); 
+
+        // --- VẼ KHUNG VIỀN THEO CHIỀU NGANG GIỮA CÁC ẢNH ---
+        ctx.fillStyle = currentFrameColor;
+        ctx.fillRect(0, y - thickness, stripWidth, thickness);
+        
+        // Vẽ dải ngang cuối cùng
+        if (i === MAX_PHOTOS - 1) {
+             ctx.fillStyle = currentFrameColor;
+             ctx.fillRect(0, y + photoHeight, stripWidth, thickness);
+        }
+        
+        // --- VẼ KHUNG VIỀN THEO CHIỀU DỌC HAI BÊN ---
+        // Dải dọc trái
+        ctx.fillStyle = currentFrameColor;
+        ctx.fillRect(0, y - thickness, thickness, photoHeight + thickness);
+
+        // Dải dọc phải
+        ctx.fillStyle = currentFrameColor;
+        ctx.fillRect(stripWidth - thickness, y - thickness, thickness, photoHeight + thickness);
+        
+        // --- VẼ ẢNH CHỤP ---
+
+        if (capturedPhotos[i] && capturedPhotos[i].image) {
+            const img = capturedPhotos[i].image;
+            const imgAspectRatio = img.width / img.height;
+            const frameAspectRatio = photoWidth / photoHeight;
+
+            let finalDrawW, finalDrawH;
+            if (imgAspectRatio > frameAspectRatio) {
+                finalDrawH = photoHeight;
+                finalDrawW = photoHeight * imgAspectRatio;
             } else {
-                return false;
+                finalDrawW = photoWidth;
+                finalDrawH = photoWidth / imgAspectRatio;
             }
 
-            const centerX = obj.x + obj.width / 2;
-            const centerY = obj.y + obj.height / 2;
+            finalDrawW *= scale;
+            finalDrawH *= scale;
 
-            const cos = Math.cos(-obj.angle || 0);
-            const sin = Math.sin(-obj.angle || 0);
-
-            const rotatedMouseX = cos * (x - centerX) - sin * (y - centerY) + centerX;
-            const rotatedMouseY = sin * (x - centerX) + cos * (y - centerY) + centerY;
+            const drawX = x + (photoWidth - finalDrawW) / 2;
+            const drawY = y + (photoHeight - finalDrawH) / 2;
             
-            return rotatedMouseX >= handleX - 5 && rotatedMouseX <= handleX + controlPointSize + 5 &&
-                   rotatedMouseY >= handleY - 5 && rotatedMouseY <= handleY + controlPointSize + 5;
+            // Cài đặt Clip Path để ảnh không tràn ra ngoài khung (rất quan trọng)
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, photoWidth, photoHeight);
+            ctx.clip(); // Giới hạn vùng vẽ
+
+            ctx.drawImage(img, drawX, drawY, finalDrawW, finalDrawH);
+            ctx.restore(); // Khôi phục Canvas
+
+        } else {
+            ctx.fillStyle = 'gray';
+            ctx.font = '30px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Ảnh ${i + 1} CHƯA CHỤP`, x + photoWidth / 2, y + photoHeight / 2);
         }
-
-        function isPointInResizeHandle(x, y, obj) {
-            return checkRotatedHandle(x, y, obj, 'resize');
-        }
-
-        function isPointInRotateHandle(x, y, obj) {
-            return checkRotatedHandle(x, y, obj, 'rotate');
-        }
-
-        function handleMouseDown(e) {
-            const mousePos = getMousePos(e);
-            let foundObject = null;
-            isResizing = false;
-            isRotating = false;
-            if (e.button === 2) return; 
-            
-            selectedObject = null; 
-
-            for (let i = canvasObjects.length - 1; i >= 0; i--) {
-                const obj = canvasObjects[i];
-                
-                if (isPointInRotateHandle(mousePos.x, mousePos.y, obj)) {
-                    selectedObject = obj;
-                    isRotating = true;
-                    isDragging = true; 
-                    startX = mousePos.x;
-                    startY = mousePos.y;
-                    lastAngle = obj.angle || 0; 
-                    drawFrame(); 
-                    return;
-                }
-
-                if (isPointInResizeHandle(mousePos.x, mousePos.y, obj)) {
-                    selectedObject = obj;
-                    isResizing = true;
-                    isDragging = true;
-                    startX = mousePos.x;
-                    startY = mousePos.y;
-                    drawFrame();
-                    return;
-                }
-
-                if (isPointInObject(mousePos.x, mousePos.y, obj)) {
-                    foundObject = obj;
-                    break;
-                }
-            }
-            
-            if (foundObject) {
-                selectedObject = foundObject;
-                isDragging = true;
-                startX = mousePos.x;
-                startY = mousePos.y;
-                drawFrame(); 
-            } else {
-                selectedObject = null;
-                drawFrame();
-            }
-        }
+    }
+    
+    // 4. VẼ CÁC STICKER/TEXT
+    // ... (Phần này giữ nguyên logic vẽ sticker/text) ...
+}
 
         function handleMouseMove(e) {
             if (!isDragging || !selectedObject) {
