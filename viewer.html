@@ -112,7 +112,7 @@
         
         
         // =======================================================
-        // PHẦN 1: HÀM VẼ VÀ CHỤP ẢNH (ĐÃ FIX DRAW FRAME)
+        // PHẦN 1: HÀM VẼ VÀ CHỤP ẢNH
         // =======================================================
 
         async function startWebcam() {
@@ -186,15 +186,16 @@
 
 
         // =======================================================
-        // PHẦN 2: LOGIC VẼ KHUNG VÀ ĐỐI TƯỢNG (ĐÃ FIX BACKGROUND & XÓA NỀN TRẮNG ẢNH CHỤP)
+        // PHẦN 2: LOGIC VẼ KHUNG VÀ ĐỐI TƯỢNG (ĐÃ FIX DRAW FRAME)
         // =======================================================
         
         function drawFrame() {
             canvas.width = stripWidth;
             canvas.height = stripHeight;
 
-            const photoWidth = stripWidth - 2 * frameThickness;
-            const photoHeight = (stripHeight - (MAX_PHOTOS + 1) * frameThickness) / MAX_PHOTOS; 
+            const currentFrameColor = frameColor;
+            const thickness = frameThickness;
+            const scale = photoSizeScale;
 
             ctx.clearRect(0, 0, stripWidth, stripHeight);
             
@@ -241,9 +242,9 @@
                 ctx.drawImage(img, drawX, drawY, drawW, drawH);
             }
 
-            // 2. VẼ KHUNG VIỀN (Frame Color)
-            ctx.fillStyle = frameColor;
-            ctx.fillRect(0, 0, stripWidth, stripHeight);
+            // 2. TÍNH TOÁN KÍCH THƯỚC VÀ KIỂM TRA LỖI
+            const photoWidth = stripWidth - 2 * thickness;
+            const photoHeight = (stripHeight - (MAX_PHOTOS + 1) * thickness) / MAX_PHOTOS; 
 
             if (photoWidth <= 0 || photoHeight <= 0) {
                 ctx.fillStyle = 'red';
@@ -253,15 +254,36 @@
                 return;
             }
             
-            // 3. VẼ các ô ảnh (Không còn nền trắng, ảnh chụp sẽ hiển thị trên nền strip)
+            // 3. VẼ CÁC VÙNG ẢNH CHỤP VÀ KHUNG VIỀN (Frame Color)
+            
+            // Vẽ dải ngang trên cùng
+            ctx.fillStyle = currentFrameColor;
+            ctx.fillRect(0, 0, stripWidth, thickness);
+            
             for (let i = 0; i < MAX_PHOTOS; i++) {
-                const x = frameThickness;
-                const y = frameThickness + i * (photoHeight + frameThickness); 
+                const x = thickness;
+                const y = thickness + i * (photoHeight + thickness); 
 
-                // KHÔNG VẼ NỀN TRẮNG TẠI ĐÂY ĐỂ NỀN STRIP HIỂN THỊ
-                // Nếu muốn vùng ảnh chụp là màu trắng, uncomment 2 dòng dưới
-                // ctx.fillStyle = '#ffffff';
-                // ctx.fillRect(x, y, photoWidth, photoHeight);
+                // --- VẼ KHUNG VIỀN THEO CHIỀU NGANG GIỮA CÁC ẢNH ---
+                ctx.fillStyle = currentFrameColor;
+                ctx.fillRect(0, y - thickness, stripWidth, thickness);
+                
+                // Vẽ dải ngang cuối cùng
+                if (i === MAX_PHOTOS - 1) {
+                     ctx.fillStyle = currentFrameColor;
+                     ctx.fillRect(0, y + photoHeight, stripWidth, thickness);
+                }
+                
+                // --- VẼ KHUNG VIỀN THEO CHIỀU DỌC HAI BÊN ---
+                // Dải dọc trái
+                ctx.fillStyle = currentFrameColor;
+                ctx.fillRect(0, y - thickness, thickness, photoHeight + thickness);
+
+                // Dải dọc phải
+                ctx.fillStyle = currentFrameColor;
+                ctx.fillRect(stripWidth - thickness, y - thickness, thickness, photoHeight + thickness);
+                
+                // --- VẼ ẢNH CHỤP ---
 
                 if (capturedPhotos[i] && capturedPhotos[i].image) {
                     const img = capturedPhotos[i].image;
@@ -277,8 +299,8 @@
                         finalDrawH = photoWidth / imgAspectRatio;
                     }
 
-                    finalDrawW *= photoSizeScale;
-                    finalDrawH *= photoSizeScale;
+                    finalDrawW *= scale;
+                    finalDrawH *= scale;
 
                     const drawX = x + (photoWidth - finalDrawW) / 2;
                     const drawY = y + (photoHeight - finalDrawH) / 2;
@@ -544,7 +566,7 @@
                 img.onerror = finishLoading; 
                 img.crossOrigin = "Anonymous";
                 img.src = bgSettings.value;
-                currentBackground.imageObject = img; // Gán đối tượng Image vào data object ngay lập tức
+                currentBackground.imageObject = img; 
             }
             
             drawFrame(); 
